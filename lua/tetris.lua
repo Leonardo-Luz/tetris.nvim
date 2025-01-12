@@ -2,6 +2,44 @@ local floatwindow = require("floatwindow")
 
 local M = {}
 
+local pieces = {
+  {
+    { "000" },
+    { " 0 " },
+    { "   " },
+  },
+  {
+    { "00" },
+    { "00" },
+  },
+  {
+    { " 00" },
+    { "00 " },
+    { "   " },
+  },
+  {
+    { "00 " },
+    { " 00" },
+    { "   " },
+  },
+  {
+    { "0  " },
+    { "0  " },
+    { "00 " },
+  },
+  {
+    { "  0" },
+    { "  0" },
+    { " 00" },
+  },
+  {
+    { "0   " },
+    { "0   " },
+    { "0   " },
+    { "0   " },
+  },
+}
+
 local state = {
   window = {},
   speed = 200, -- ms
@@ -10,6 +48,17 @@ local state = {
       x = 20,
       y = 30,
     },
+  },
+  loop = nil,
+  current_piece = {
+    pos = {
+      offset = -1,
+      limit = -1,
+    },
+    piece = nil,
+    direc = 1,
+    height = -1,
+    width = -1,
   },
 }
 
@@ -21,7 +70,7 @@ local window_config = function()
   local background_width = state.map.map_size.x + info_tab
   local game_width = state.map.map_size.x
 
-  local title = "0o.Tetris.o0"
+  local title = "0o. Tetris .o0"
   local padding = string.rep("#", (game_width - title:len()) / 2)
 
   return {
@@ -72,9 +121,40 @@ end
 local window_content = function() end
 
 local exit = function()
+  if state.loop ~= nil then
+    vim.fn.timer_stop(state.loop)
+  end
+
   foreach_float(function(_, float)
     pcall(vim.api.nvim_win_close, float.floating.win, true)
   end)
+end
+
+local rotate_piece = function(val)
+  state.current_piece.direc = state.current_piece.direc + val
+
+  if state.current_piece.direc > 4 then
+    state.current_piece.direc = 1
+  elseif state.current_piece.direc < 1 then
+    state.current_piece.direc = 4
+  end
+end
+
+local move_piece = function(val)
+  state.current_piece.pos.limit = state.current_piece.pos.limit + val
+  state.current_piece.pos.offset = state.current_piece.pos.offset + val
+
+  if state.current_piece.pos.offset > state.map.map_size.x then
+    state.current_piece.pos.offset = state.map.map_size.x
+  elseif state.current_piece.pos.offset < 1 then
+    state.current_piece.pos.offset = 1
+  end
+
+  if state.current_piece.pos.limit > state.map.map_size.x then
+    state.current_piece.pos.limit = state.map.map_size.x
+  elseif state.current_piece.pos.limit < 1 then
+    state.current_piece.pos.limit = 1
+  end
 end
 
 local remaps = function()
@@ -82,17 +162,24 @@ local remaps = function()
     vim.api.nvim_win_close(state.window.game.floating.win, true)
   end, { buffer = state.window.game.floating.buf })
 
+  vim.keymap.set("n", "z", function()
+    rotate_piece(-1)
+  end, { buffer = state.window.game.floating.buf })
+  vim.keymap.set("n", "x", function()
+    rotate_piece(1)
+  end, { buffer = state.window.game.floating.buf })
+
   vim.keymap.set("n", "h", function()
-    -- turn right
+    move_piece(-1)
   end, { buffer = state.window.game.floating.buf })
   vim.keymap.set("n", "l", function()
-    -- turn left
+    move_piece(1)
   end, { buffer = state.window.game.floating.buf })
   vim.keymap.set("n", "j", function()
-    -- drop
+    -- drop WIP
   end, { buffer = state.window.game.floating.buf })
   vim.keymap.set("n", "k", function()
-    -- hold
+    -- hold WIP
   end, { buffer = state.window.game.floating.buf })
 
   vim.api.nvim_create_autocmd("BufLeave", {
@@ -122,7 +209,7 @@ local remaps = function()
 end
 
 local loop = function()
-  vim.fn.timer_start(state.speed, function()
+  state.loop = vim.fn.timer_start(state.speed, function()
     window_content()
   end, {
     ["repeat"] = -1,

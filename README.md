@@ -20,8 +20,10 @@
 
 **Usage:**
 
-* `:Tetris`: Opens your last note or creates a new one if none was found.
-    * `l`: Rotate to right
-    * `h`: Rotate to left
+* `:Tetris`: Start the game
+    * `l`: Move to right
+    * `h`: Move to left
+    * `z`: Rotate to right
+    * `x`: Rotate to left
     * `j`: Drop piece
     * `k`: Hold piece
