@@ -281,8 +281,18 @@ local remaps = function()
   })
 end
 
+local falling_piece = function()
+  state.current_piece.pos.y = state.current_piece.pos.y + 1
+
+  if state.current_piece.pos.y + 1 > state.map.map_size.y then
+    set_current_piece(math.random(1, #pieces))
+  end
+end
+
 local loop = function()
   state.loop = vim.fn.timer_start(state.speed, function()
+    falling_piece()
+
     window_content()
   end, {
     ["repeat"] = -1,
@@ -290,14 +300,16 @@ local loop = function()
 end
 
 local start = function()
+  math.randomseed(os.time())
+
   state.window = window_config()
 
   state.window.background.floating = floatwindow.create_floating_window(state.window.background)
   state.window.game.floating = floatwindow.create_floating_window(state.window.game)
 
-  set_current_piece(1)
+  set_current_piece(math.random(1, #pieces))
 
-  -- loop()
+  loop()
 
   remaps()
 end
