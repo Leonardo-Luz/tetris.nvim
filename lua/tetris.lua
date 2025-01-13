@@ -123,7 +123,7 @@ end
 
 local clear_map = function()
   state.map.map = {}
-  for _ = 1, state.map.map_size.y do
+  for _ = 0, state.map.map_size.y do
     table.insert(state.map.map, string.rep(" ", state.map.map_size.x))
   end
 end
@@ -131,11 +131,13 @@ end
 local map_update = function()
   clear_map()
 
-  for i = #state.current_piece.piece, 1, -1 do
+  for i = state.current_piece.pos.y - (#state.current_piece.piece - 1), state.current_piece.pos.y do
     local current_line = state.map.map[i]
-    state.map.map[i] = current_line:sub(1, state.current_piece.pos.x_offset)
-      .. state.current_piece.piece[i]
-      .. current_line:sub(state.current_piece.pos.x_limit, current_line:len())
+    local piece_row_index = i - (state.current_piece.pos.y - (#state.current_piece.piece - 1)) + 1
+    local new_line = current_line:sub(1, state.current_piece.pos.x_offset)
+      .. state.current_piece.piece[piece_row_index]
+      .. current_line:sub(state.current_piece.pos.x_limit, current_line:len() - 1)
+    state.map.map[i] = new_line
   end
 end
 
