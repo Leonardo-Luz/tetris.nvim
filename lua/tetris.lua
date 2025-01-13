@@ -122,18 +122,19 @@ local foreach_float = function(callback)
 end
 
 local clear_map = function()
-  for i = 1, state.map.map_size.y do
-    state.map.map[i] = string.rep(" ", state.map.map_size.x)
+  state.map.map = {}
+  for _ = 1, state.map.map_size.y do
+    table.insert(state.map.map, string.rep(" ", state.map.map_size.x))
   end
 end
 
 local map_update = function()
   clear_map()
 
-  for i = 0, #state.current_piece.piece - 1 do
-    local current_line = state.map.map[state.current_piece.pos.y - i]
-    state.map.map[state.current_piece.pos.y - i] = current_line:sub(1, state.current_piece.pos.x_offset)
-      .. state.current_piece.piece[#state.current_piece.piece - i]
+  for i = #state.current_piece.piece, 1, -1 do
+    local current_line = state.map.map[i]
+    state.map.map[i] = current_line:sub(1, state.current_piece.pos.x_offset)
+      .. state.current_piece.piece[i]
       .. current_line:sub(state.current_piece.pos.x_limit, current_line:len())
   end
 end
@@ -208,23 +209,23 @@ local rotate_piece = function(increase)
   end
 
   state.current_piece.piece = aux
+
+  window_content()
 end
 
 local move_piece = function(val)
   state.current_piece.pos.x_limit = state.current_piece.pos.x_limit + val
   state.current_piece.pos.x_offset = state.current_piece.pos.x_offset + val
 
-  if state.current_piece.pos.x_offset > state.map.map_size.x then
-    state.current_piece.pos.x_offset = state.map.map_size.x
-  elseif state.current_piece.pos.x_offset < 1 then
-    state.current_piece.pos.x_offset = 1
+  if state.current_piece.pos.x_offset < 0 then
+    state.current_piece.pos.x_offset = 0
+    state.current_piece.pos.x_limit = state.current_piece.piece[1]:len()
+  elseif state.current_piece.pos.x_limit > state.map.map_size.x then
+    state.current_piece.pos.x_offset = state.map.map_size.x - state.current_piece.piece[1]:len()
+    state.current_piece.pos.x_limit = state.map.map_size.x
   end
 
-  if state.current_piece.pos.x_limit > state.map.map_size.x then
-    state.current_piece.pos.x_limit = state.map.map_size.x
-  elseif state.current_piece.pos.x_limit < 1 then
-    state.current_piece.pos.x_limit = 1
-  end
+  window_content()
 end
 
 local remaps = function()
@@ -234,11 +235,9 @@ local remaps = function()
 
   vim.keymap.set("n", "d", function()
     rotate_piece(false)
-    window_content()
   end, { buffer = state.window.game.floating.buf })
   vim.keymap.set("n", "x", function()
     rotate_piece(true)
-    window_content()
   end, { buffer = state.window.game.floating.buf })
 
   vim.keymap.set("n", "h", function()
