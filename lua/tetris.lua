@@ -42,7 +42,7 @@ local pieces = {
 
 local state = {
   window = {},
-  speed = 060, -- ms
+  speed = 020, -- ms
   map = {
     map_size = {
       x = 20,
@@ -145,6 +145,10 @@ local map_update = function()
     for _, piece in ipairs(state.map.pieces) do
       for i = piece.pos.y - (#piece.piece - 1), piece.pos.y do
         local current_line = state.map.map[i]
+        -- FIX: CRASHS WHEN THE MAP IS CLEANED
+        -- if current_line == nil then
+        --   return
+        -- end
         local piece_row_index = i - (piece.pos.y - (#piece.piece - 1)) + 1
         local new_line = current_line:sub(0, piece.pos.x_offset)
           .. piece.piece[piece_row_index]
@@ -316,22 +320,34 @@ local gravity = function()
 
   for _, piece in ipairs(state.map.pieces) do
     if
-      state.current_piece.pos.y > piece.pos.y
+      state.current_piece.pos.y > piece.pos.y - #piece.piece
       and (
-        (state.current_piece.pos.x_offset > piece.pos.x_offset and state.current_piece.pos.x_offset < piece.pos.x_limit)
+        (
+          state.current_piece.pos.x_offset >= piece.pos.x_offset
+          and state.current_piece.pos.x_offset <= piece.pos.x_limit
+        )
         or (
-          state.current_piece.pos.x_limit > piece.pos.x_offset and state.current_piece.pos.x_limit < piece.pos.x_limit
+          state.current_piece.pos.x_limit >= piece.pos.x_offset
+          and state.current_piece.pos.x_limit <= piece.pos.x_limit
         )
       )
     then
       state.current_piece.pos.y = piece.pos.y - #piece.piece
 
-      local copy = deep_copy(state.current_piece)
+      if state.current_piece.pos.y < 0 then
+        set_current_piece(math.random(1, #pieces))
+        for _ = 1, #state.map.pieces do
+          table.remove(state.map.pieces, 1)
+        end
+        return
+      else
+        local copy = deep_copy(state.current_piece)
 
-      table.insert(state.map.pieces, copy)
+        table.insert(state.map.pieces, copy)
 
-      set_current_piece(math.random(1, #pieces))
-      return
+        set_current_piece(math.random(1, #pieces))
+        return
+      end
     end
   end
 
