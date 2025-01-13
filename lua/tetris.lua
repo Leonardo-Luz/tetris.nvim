@@ -4,39 +4,39 @@ local M = {}
 
 local pieces = {
   {
-    { "000" },
-    { " 0 " },
-    { "   " },
+    "000",
+    " 0 ",
+    "   ",
   },
   {
-    { "00" },
-    { "00" },
+    "00",
+    "00",
   },
   {
-    { " 00" },
-    { "00 " },
-    { "   " },
+    " 00",
+    "00 ",
+    "   ",
   },
   {
-    { "00 " },
-    { " 00" },
-    { "   " },
+    "00 ",
+    " 00",
+    "   ",
   },
   {
-    { "0  " },
-    { "0  " },
-    { "00 " },
+    "0  ",
+    "0  ",
+    "00 ",
   },
   {
-    { "  0" },
-    { "  0" },
-    { " 00" },
+    "  0",
+    "  0",
+    " 00",
   },
   {
-    { "0   " },
-    { "0   " },
-    { "0   " },
-    { "0   " },
+    "0   ",
+    "0   ",
+    "0   ",
+    "0   ",
   },
 }
 
@@ -48,12 +48,15 @@ local state = {
       x = 20,
       y = 30,
     },
+    map = {},
   },
   loop = nil,
   current_piece = {
+    piece_id = -1,
     pos = {
-      offset = -1,
-      limit = -1,
+      x_offset = -1,
+      x_limit = -1,
+      y = -1,
     },
     piece = nil,
     direc = 1,
@@ -118,7 +121,9 @@ local foreach_float = function(callback)
   end
 end
 
-local window_content = function() end
+local window_content = function()
+  vim.api.nvim_buf_set_lines(state.window.game.floating.buf, 0, -1, true, state.map.map)
+end
 
 local exit = function()
   if state.loop ~= nil then
@@ -138,22 +143,56 @@ local rotate_piece = function(val)
   elseif state.current_piece.direc < 1 then
     state.current_piece.direc = 4
   end
+
+  local size = #state.current_piece.piece
+
+  --- @type string[]
+  local aux = {}
+
+  for _ = 1, size do
+    table.insert(aux, "")
+  end
+
+  vim.print(state.current_piece.piece)
+  if state.current_piece.direc == 1 then
+    aux = pieces[state.current_piece.piece_id]
+  elseif state.current_piece.direc == 2 then
+    for l = size, 1, -1 do
+      for j = size, 1, -1 do
+        aux[j] = aux[j] .. state.current_piece.piece[l]:sub(j, j)
+      end
+    end
+  elseif state.current_piece.direc == 3 then
+    for j = size, 1, -1 do
+      aux[size + 1 - j] = pieces[state.current_piece.piece_id][j]
+    end
+  elseif state.current_piece.direc == 4 then
+    for l = 1, size do
+      for j = 1, size do
+        aux[j] = aux[j] .. state.current_piece.piece[l]:sub(j, j)
+      end
+    end
+  end
+
+  vim.print(aux)
+
+  state.current_piece.piece = aux
 end
 
 local move_piece = function(val)
-  state.current_piece.pos.limit = state.current_piece.pos.limit + val
-  state.current_piece.pos.offset = state.current_piece.pos.offset + val
+  state.current_piece.pos.x_limit = state.current_piece.pos.x_limit + val
+  state.current_piece.pos.x_offset = state.current_piece.pos.x_offset + val
 
-  if state.current_piece.pos.offset > state.map.map_size.x then
-    state.current_piece.pos.offset = state.map.map_size.x
-  elseif state.current_piece.pos.offset < 1 then
-    state.current_piece.pos.offset = 1
+  if state.current_piece.pos.x_offset > state.map.map_size.x then
+    state.current_piece.pos.x_offset = state.map.map_size.x
+  elseif state.current_piece.pos.x_offset < 1 then
+    state.current_piece.pos.x_offset = 1
   end
 
-  if state.current_piece.pos.limit > state.map.map_size.x then
-    state.current_piece.pos.limit = state.map.map_size.x
-  elseif state.current_piece.pos.limit < 1 then
-    state.current_piece.pos.limit = 1
+  if state.current_piece.pos.x_limit > state.map.map_size.x then
+    state.current_piece.pos.x_limit = state.map.map_size.x
+  elseif state.current_piece.pos.x_limit < 1 then
+    state.current_piece.pos.x_limit = 1
   end
 end
 
@@ -221,6 +260,9 @@ local start = function()
 
   state.window.background.floating = floatwindow.create_floating_window(state.window.background)
   state.window.game.floating = floatwindow.create_floating_window(state.window.game)
+
+  state.current_piece.piece_id = 1
+  state.current_piece.piece = pieces[state.current_piece.piece_id]
 
   loop()
 
