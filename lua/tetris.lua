@@ -121,7 +121,41 @@ local foreach_float = function(callback)
   end
 end
 
+local clear_map = function()
+  for i = 1, state.map.map_size.y do
+    state.map.map[i] = string.rep(" ", state.map.map_size.x)
+  end
+end
+
+local map_update = function()
+  clear_map()
+
+  for i = 0, #state.current_piece.piece - 1 do
+    local current_line = state.map.map[state.current_piece.pos.y - i]
+    state.map.map[state.current_piece.pos.y - i] = current_line:sub(1, state.current_piece.pos.x_offset)
+      .. state.current_piece.piece[#state.current_piece.piece - i]
+      .. current_line:sub(state.current_piece.pos.x_limit, current_line:len())
+  end
+end
+
+local set_current_piece = function(piece_id)
+  local aux = pieces[piece_id]
+  local middle = state.map.map_size.x / 2
+  state.current_piece = {
+    pos = {
+      x_offset = middle,
+      x_limit = middle + aux[1]:len(),
+      y = #aux,
+    },
+    direc = 1,
+    piece_id = piece_id,
+    piece = aux,
+  }
+end
+
 local window_content = function()
+  map_update()
+
   vim.api.nvim_buf_set_lines(state.window.game.floating.buf, 0, -1, true, state.map.map)
 end
 
@@ -135,8 +169,8 @@ local exit = function()
   end)
 end
 
-local rotate_piece = function(val)
-  state.current_piece.direc = state.current_piece.direc + val
+local rotate_piece = function(increase)
+  state.current_piece.direc = state.current_piece.direc + (increase and 1 or -1)
 
   if state.current_piece.direc > 4 then
     state.current_piece.direc = 1
@@ -153,13 +187,12 @@ local rotate_piece = function(val)
     table.insert(aux, "")
   end
 
-  vim.print(state.current_piece.piece)
   if state.current_piece.direc == 1 then
     aux = pieces[state.current_piece.piece_id]
   elseif state.current_piece.direc == 2 then
     for l = size, 1, -1 do
       for j = size, 1, -1 do
-        aux[j] = aux[j] .. state.current_piece.piece[l]:sub(j, j)
+        aux[j] = aux[j] .. pieces[state.current_piece.piece_id][l]:sub(j, j)
       end
     end
   elseif state.current_piece.direc == 3 then
@@ -169,12 +202,10 @@ local rotate_piece = function(val)
   elseif state.current_piece.direc == 4 then
     for l = 1, size do
       for j = 1, size do
-        aux[j] = aux[j] .. state.current_piece.piece[l]:sub(j, j)
+        aux[j] = aux[j] .. pieces[state.current_piece.piece_id][l]:sub(j, j)
       end
     end
   end
-
-  vim.print(aux)
 
   state.current_piece.piece = aux
 end
@@ -201,11 +232,13 @@ local remaps = function()
     vim.api.nvim_win_close(state.window.game.floating.win, true)
   end, { buffer = state.window.game.floating.buf })
 
-  vim.keymap.set("n", "z", function()
-    rotate_piece(-1)
+  vim.keymap.set("n", "d", function()
+    rotate_piece(false)
+    window_content()
   end, { buffer = state.window.game.floating.buf })
   vim.keymap.set("n", "x", function()
-    rotate_piece(1)
+    rotate_piece(true)
+    window_content()
   end, { buffer = state.window.game.floating.buf })
 
   vim.keymap.set("n", "h", function()
@@ -261,10 +294,9 @@ local start = function()
   state.window.background.floating = floatwindow.create_floating_window(state.window.background)
   state.window.game.floating = floatwindow.create_floating_window(state.window.game)
 
-  state.current_piece.piece_id = 1
-  state.current_piece.piece = pieces[state.current_piece.piece_id]
+  set_current_piece(1)
 
-  loop()
+  -- loop()
 
   remaps()
 end
