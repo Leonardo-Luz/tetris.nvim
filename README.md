@@ -1,10 +1,10 @@
-## tetris.nvim [WIP]
+# tetris.nvim (WIP)
 
-*A Neovim Plugin that implements a tetris game*
+*A Neovim plugin that provides a playable Tetris game.*
 
 **Features:**
 
-* Tetris game
+* Persistent high score between sessions.
 
 **Dependencies:**
 
@@ -20,10 +20,10 @@
 
 **Usage:**
 
-* `:Tetris`: Start the game
-    * `l`: Move to right
-    * `h`: Move to left
-    * `z`: Rotate to right
-    * `x`: Rotate to left
-    * `j`: Drop piece
-    * `k`: Hold piece
+* `:Tetris`: Start the game.
+* `l`: Move piece right.
+* `h`: Move piece left.
+* `j`: Drop piece.
+* `k`: Hold piece.
+* `d`: Rotate piece right (subject to change).
+* `x`: Rotate piece left (subject to change).
