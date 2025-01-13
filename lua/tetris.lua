@@ -42,13 +42,14 @@ local pieces = {
 
 local state = {
   window = {},
-  speed = 200, -- ms
+  speed = 060, -- ms
   map = {
     map_size = {
       x = 20,
       y = 30,
     },
     map = {},
+    pieces = {},
   },
   loop = nil,
   current_piece = {
@@ -87,7 +88,7 @@ local window_config = function()
         relative = "editor",
         style = "minimal",
         width = background_width,
-        height = state.map.map_size.y + 1,
+        height = state.map.map_size.y,
         col = math.floor((win_width - (state.map.map_size.x + info_tab)) / 2),
         row = math.floor((win_height - state.map.map_size.y + 2) / 2),
         border = { "#", "#", "#", "#", "#", "#", "#", "#" },
@@ -104,7 +105,7 @@ local window_config = function()
         relative = "editor",
         style = "minimal",
         width = game_width,
-        height = state.map.map_size.y + 1,
+        height = state.map.map_size.y,
         col = math.floor((win_width - state.map.map_size.x - info_tab) / 2),
         row = math.floor((win_height - state.map.map_size.y + 2) / 2),
         border = { "#", "#", "#", "#", "#", "#", "#", "#" },
@@ -138,6 +139,19 @@ local map_update = function()
       .. state.current_piece.piece[piece_row_index]
       .. current_line:sub(state.current_piece.pos.x_limit, current_line:len() - 1)
     state.map.map[i] = new_line
+  end
+
+  if #state.map.pieces > 0 then
+    for _, piece in ipairs(state.map.pieces) do
+      for i = piece.pos.y - (#piece.piece - 1), piece.pos.y do
+        local current_line = state.map.map[i]
+        local piece_row_index = i - (piece.pos.y - (#piece.piece - 1)) + 1
+        local new_line = current_line:sub(0, piece.pos.x_offset)
+          .. piece.piece[piece_row_index]
+          .. current_line:sub(piece.pos.x_limit + 1, current_line:len() - 1)
+        state.map.map[i] = new_line
+      end
+    end
   end
 end
 
@@ -235,10 +249,10 @@ local remaps = function()
     vim.api.nvim_win_close(state.window.game.floating.win, true)
   end, { buffer = state.window.game.floating.buf })
 
-  vim.keymap.set("n", "d", function()
+  vim.keymap.set("n", "j", function()
     rotate_piece(false)
   end, { buffer = state.window.game.floating.buf })
-  vim.keymap.set("n", "x", function()
+  vim.keymap.set("n", "k", function()
     rotate_piece(true)
   end, { buffer = state.window.game.floating.buf })
 
@@ -248,10 +262,10 @@ local remaps = function()
   vim.keymap.set("n", "l", function()
     move_piece(1)
   end, { buffer = state.window.game.floating.buf })
-  vim.keymap.set("n", "j", function()
+  vim.keymap.set("n", "d", function()
     -- drop WIP
   end, { buffer = state.window.game.floating.buf })
-  vim.keymap.set("n", "k", function()
+  vim.keymap.set("n", "c", function()
     -- hold WIP
   end, { buffer = state.window.game.floating.buf })
 
@@ -281,17 +295,61 @@ local remaps = function()
   })
 end
 
-local falling_piece = function()
+---Copies a table without referencing it
+---@param obj table
+---@return table
+local function deep_copy(obj)
+  local copy
+  if type(obj) == "table" then
+    copy = {}
+    for k, v in pairs(obj) do
+      copy[deep_copy(k)] = deep_copy(v)
+    end
+  else
+    copy = obj
+  end
+  return copy
+end
+
+local gravity = function()
   state.current_piece.pos.y = state.current_piece.pos.y + 1
 
-  if state.current_piece.pos.y + 1 > state.map.map_size.y then
+  for _, piece in ipairs(state.map.pieces) do
+    if
+      state.current_piece.pos.y > piece.pos.y
+      and (
+        (state.current_piece.pos.x_offset > piece.pos.x_offset and state.current_piece.pos.x_offset < piece.pos.x_limit)
+        or (
+          state.current_piece.pos.x_limit > piece.pos.x_offset and state.current_piece.pos.x_limit < piece.pos.x_limit
+        )
+      )
+    then
+      state.current_piece.pos.y = piece.pos.y - #piece.piece
+
+      local copy = deep_copy(state.current_piece)
+
+      table.insert(state.map.pieces, copy)
+
+      set_current_piece(math.random(1, #pieces))
+      return
+    end
+  end
+
+  if state.current_piece.pos.y > state.map.map_size.y then
+    state.current_piece.pos.y = state.map.map_size.y
+
+    local copy = deep_copy(state.current_piece)
+
+    table.insert(state.map.pieces, copy)
+
     set_current_piece(math.random(1, #pieces))
+    return
   end
 end
 
 local loop = function()
   state.loop = vim.fn.timer_start(state.speed, function()
-    falling_piece()
+    gravity()
 
     window_content()
   end, {
@@ -307,7 +365,9 @@ local start = function()
   state.window.background.floating = floatwindow.create_floating_window(state.window.background)
   state.window.game.floating = floatwindow.create_floating_window(state.window.game)
 
-  set_current_piece(math.random(1, #pieces))
+  if state.current_piece.piece == nil then
+    set_current_piece(math.random(1, #pieces))
+  end
 
   loop()
 
