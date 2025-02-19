@@ -165,7 +165,7 @@ local map_update = function()
 
   for _, tile in pairs(state.current_piece.piece) do
     local current_line = state.map.actual[tile.y]
-    local new_line = current_line:sub(1, tile.x - 1) .. "0" .. current_line:sub(tile.x + 1, current_line:len() - 1)
+    local new_line = current_line:sub(0, tile.x - 1) .. "0" .. current_line:sub(tile.x + 1, current_line:len() - 1)
     state.map.actual[tile.y] = new_line
   end
 
@@ -291,16 +291,21 @@ local rotate_piece = function(increase)
 end
 
 local move_piece = function(val)
+  local hit_wall = false
+
   for _, tile in pairs(state.current_piece.piece) do
-    if state.current_piece.pos.x_offset < 1 and val < 0 then
-      window_content()
-      return
-    elseif state.current_piece.pos.x_limit > state.map.map_size.x - 1 and val > 0 then
-      window_content()
-      return
-    else
-      tile.x = tile.x + val
+    if tile.x < 2 and val < 0 or tile.x > state.map.map_size.x - 1 and val > 0 then
+      hit_wall = true
     end
+  end
+
+  if hit_wall then
+    window_content()
+    return
+  end
+
+  for _, tile in pairs(state.current_piece.piece) do
+    tile.x = tile.x + val
   end
 
   state.current_piece.pos.x_limit = state.current_piece.pos.x_limit + val
@@ -370,6 +375,13 @@ local gravity = function()
 
   if #state.map.pieces > 0 then
     for _, piece in ipairs(state.map.pieces) do
+      for _, mapPos in ipairs(piece.piece) do
+        for _, myPos in ipairs(state.current_piece.piece) do
+          if mapPos.x == myPos.x and mapPos.y == myPos.y then
+            vim.print("Your tetris tile hit a map tile!")
+          end
+        end
+      end
       if
         state.current_piece.pos.y > piece.pos.y - #piece.piece
         and (
