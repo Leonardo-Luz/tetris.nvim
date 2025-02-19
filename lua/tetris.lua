@@ -164,7 +164,16 @@ local map_update = function()
   clear_map()
 
   for _, tile in pairs(state.current_piece.piece) do
-    local current_line = state.map.actual[tile.y]
+    local current_line = nil
+
+    if tile.y < state.map.map_size.y then
+      current_line = state.map.actual[tile.y]
+    end
+
+    if current_line == nil then
+      return
+    end
+
     local new_line = current_line:sub(0, tile.x - 1) .. "0" .. current_line:sub(tile.x + 1, current_line:len() - 1)
     state.map.actual[tile.y] = new_line
   end
@@ -190,33 +199,33 @@ local set_current_piece = function(piece_id)
   end
 
   if type(aux) == "table" then
-    local height = -1
+    -- local height = -1
 
-    for _, tile in pairs(aux) do
-      if tile.y > height then
-        height = tile.y
-      end
-    end
-    local offset = -1
-    local limit = -1
-
-    for _, tile in pairs(aux) do
-      if tile.y == height then
-        if tile.x > limit then
-          limit = tile.x
-        end
-        if tile.x <= limit and tile.x > offset then
-          offset = tile.x
-        end
-      end
-    end
+    -- for _, tile in pairs(aux) do
+    --   if tile.y > height then
+    --     height = tile.y
+    --   end
+    -- end
+    -- local offset = -1
+    -- local limit = -1
+    --
+    -- for _, tile in pairs(aux) do
+    --   if tile.y == height then
+    --     if tile.x > limit then
+    --       limit = tile.x
+    --     end
+    --     if tile.x <= limit and tile.x > offset then
+    --       offset = tile.x
+    --     end
+    --   end
+    -- end
 
     state.current_piece = {
-      pos = {
-        x_offset = offset,
-        x_limit = limit,
-        y = height,
-      },
+      -- pos = {
+      --   x_offset = offset,
+      --   x_limit = limit,
+      --   y = height,
+      -- },
       direc = 1,
       piece_id = piece_id,
       piece = deep_copy(aux),
@@ -308,9 +317,6 @@ local move_piece = function(val)
     tile.x = tile.x + val
   end
 
-  state.current_piece.pos.x_limit = state.current_piece.pos.x_limit + val
-  state.current_piece.pos.x_offset = state.current_piece.pos.x_offset + val
-
   window_content()
 end
 
@@ -333,7 +339,9 @@ local remaps = function()
     move_piece(1)
   end, { buffer = state.window.game.floating.buf })
   vim.keymap.set("n", "d", function()
-    state.current_piece.pos.y = state.current_piece.pos.y + 1
+    for _, tile in pairs(state.current_piece.piece) do
+      tile.y = tile.y + 1
+    end
   end, { buffer = state.window.game.floating.buf })
 
   vim.keymap.set("n", "c", function()
@@ -371,7 +379,6 @@ local gravity = function()
   for _, tile in pairs(state.current_piece.piece) do
     tile.y = tile.y + 1
   end
-  state.current_piece.pos.y = state.current_piece.pos.y + 1
 
   if #state.map.pieces > 0 then
     for _, piece in ipairs(state.map.pieces) do
@@ -379,55 +386,41 @@ local gravity = function()
         for _, myPos in ipairs(state.current_piece.piece) do
           if mapPos.x == myPos.x and mapPos.y == myPos.y then
             vim.print("Your tetris tile hit a map tile!")
+
+            for _, tile in pairs(state.current_piece.piece) do
+              tile.y = tile.y - 1
+
+              if tile.y <= 0 then -- GAME OVER
+                set_current_piece(math.random(1, #pieces))
+                for _ = 1, #state.map.pieces do
+                  table.remove(state.map.pieces, 1)
+                end
+                return
+              end
+            end
+
+            local copy = deep_copy(state.current_piece)
+
+            table.insert(state.map.pieces, copy)
+
+            set_current_piece(math.random(1, #pieces))
           end
-        end
-      end
-      if
-        state.current_piece.pos.y > piece.pos.y - #piece.piece
-        and (
-          (
-            state.current_piece.pos.x_offset >= piece.pos.x_offset
-            and state.current_piece.pos.x_offset <= piece.pos.x_limit
-          )
-          or (
-            state.current_piece.pos.x_limit >= piece.pos.x_offset
-            and state.current_piece.pos.x_limit <= piece.pos.x_limit
-          )
-        )
-      then
-        state.current_piece.pos.y = piece.pos.y - #piece.piece
-
-        if state.current_piece.pos.y < 0 then
-          set_current_piece(math.random(1, #pieces))
-          for _ = 1, #state.map.pieces do
-            table.remove(state.map.pieces, 1)
-          end
-          return
-        else
-          local copy = deep_copy(state.current_piece)
-
-          table.insert(state.map.pieces, copy)
-
-          set_current_piece(math.random(1, #pieces))
-          return
         end
       end
     end
   end
 
-  if state.current_piece.pos.y > state.map.map_size.y then
-    state.current_piece.pos.y = state.map.map_size.y
+  for _, tile in pairs(state.current_piece.piece) do
+    if tile.y == state.map.map_size.y then
+      local copy = deep_copy(state.current_piece)
 
-    local copy = deep_copy(state.current_piece)
+      table.insert(state.map.pieces, copy)
 
-    table.insert(state.map.pieces, copy)
-
-    set_current_piece(math.random(1, #pieces))
-    return
+      set_current_piece(math.random(1, #pieces))
+      return
+    end
   end
 end
-
--- local loop = function() end
 
 local loop = function()
   state.loop = vim.fn.timer_start(state.speed, function()
@@ -451,7 +444,7 @@ local start = function()
     set_current_piece(math.random(1, #pieces))
   end
 
-  -- loop()
+  loop()
 
   remaps()
 end
