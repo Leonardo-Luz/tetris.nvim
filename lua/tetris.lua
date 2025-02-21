@@ -150,13 +150,13 @@ local clear_map = function()
   for i, map_line in pairs(state.map.actual) do
     if map_line == ("0"):rep(state.map.map_size.x) then
       table.remove(state.map.actual, i)
-      table.insert(state.map.actual, 1, (" "):rep(state.map.map_size.x))
+      table.insert(state.map.actual, 1, ("|"):rep(state.map.map_size.x))
     end
   end
 
   state.map.actual = {}
   for _ = 0, state.map.map_size.y do
-    table.insert(state.map.actual, string.rep(" ", state.map.map_size.x))
+    table.insert(state.map.actual, string.rep("|", state.map.map_size.x))
   end
 end
 
@@ -174,18 +174,15 @@ local map_update = function()
       return
     end
 
-    local new_line = current_line:sub(0, tile.x - 1) .. "0" .. current_line:sub(tile.x + 1, current_line:len() - 1)
+    local new_line = current_line:sub(0, tile.x - 1) .. "0" .. current_line:sub(tile.x + 1, current_line:len())
     state.map.actual[tile.y] = new_line
   end
 
-  -- FIX: CRASHS WHEN THE MAP IS CLEANED
   if #state.map.pieces > 0 then
-    for _, piece in pairs(state.map.pieces) do
-      for _, tile in pairs(piece.piece) do
-        local current_line = state.map.actual[tile.y]
-        local new_line = current_line:sub(0, tile.x - 1) .. "0" .. current_line:sub(tile.x + 1, current_line:len() - 1)
-        state.map.actual[tile.y] = new_line
-      end
+    for _, tile in pairs(state.map.pieces) do
+      local current_line = state.map.actual[tile.y]
+      local new_line = current_line:sub(0, tile.x - 1) .. "0" .. current_line:sub(tile.x + 1, current_line:len())
+      state.map.actual[tile.y] = new_line
     end
   end
 end
@@ -199,36 +196,10 @@ local set_current_piece = function(piece_id)
   end
 
   if type(aux) == "table" then
-    -- local height = -1
-
-    -- for _, tile in pairs(aux) do
-    --   if tile.y > height then
-    --     height = tile.y
-    --   end
-    -- end
-    -- local offset = -1
-    -- local limit = -1
-    --
-    -- for _, tile in pairs(aux) do
-    --   if tile.y == height then
-    --     if tile.x > limit then
-    --       limit = tile.x
-    --     end
-    --     if tile.x <= limit and tile.x > offset then
-    --       offset = tile.x
-    --     end
-    --   end
-    -- end
-
     state.current_piece = {
-      -- pos = {
-      --   x_offset = offset,
-      --   x_limit = limit,
-      --   y = height,
-      -- },
       direc = 1,
       piece_id = piece_id,
-      piece = deep_copy(aux),
+      piece = aux,
     }
   end
 end
@@ -381,30 +352,31 @@ local gravity = function()
   end
 
   if #state.map.pieces > 0 then
-    for _, piece in ipairs(state.map.pieces) do
-      for _, mapPos in ipairs(piece.piece) do
-        for _, myPos in ipairs(state.current_piece.piece) do
-          if mapPos.x == myPos.x and mapPos.y == myPos.y then
-            vim.print("Your tetris tile hit a map tile!")
+    for _, mapPos in ipairs(state.map.pieces) do
+      for _, myPos in ipairs(state.current_piece.piece) do
+        if mapPos.x == myPos.x and mapPos.y == myPos.y then
+          vim.print("Your tetris tile hit a map tile!")
 
-            for _, tile in pairs(state.current_piece.piece) do
-              tile.y = tile.y - 1
+          for _, tile in pairs(state.current_piece.piece) do
+            tile.y = tile.y - 1
 
-              if tile.y <= 0 then -- GAME OVER
-                set_current_piece(math.random(1, #pieces))
-                for _ = 1, #state.map.pieces do
-                  table.remove(state.map.pieces, 1)
-                end
-                return
+            if tile.y <= 0 then -- GAME OVER
+              set_current_piece(math.random(1, #pieces))
+              for _ = 1, #state.map.pieces do
+                table.remove(state.map.pieces, 1)
               end
+              return
             end
-
-            local copy = deep_copy(state.current_piece)
-
-            table.insert(state.map.pieces, copy)
-
-            set_current_piece(math.random(1, #pieces))
           end
+
+          local copy = deep_copy(state.current_piece.piece)
+
+          for _, cpy in pairs(copy) do
+            table.insert(state.map.pieces, cpy)
+          end
+
+          set_current_piece(math.random(1, #pieces))
+          return
         end
       end
     end
@@ -412,21 +384,57 @@ local gravity = function()
 
   for _, tile in pairs(state.current_piece.piece) do
     if tile.y == state.map.map_size.y then
-      local copy = deep_copy(state.current_piece)
+      local copy = deep_copy(state.current_piece.piece)
 
-      table.insert(state.map.pieces, copy)
+      for _, cpy in pairs(copy) do
+        table.insert(state.map.pieces, cpy)
+      end
 
       set_current_piece(math.random(1, #pieces))
       return
     end
   end
+
+  for y = 1, state.map.map_size.y do
+    local keys = {}
+    for x = 1, state.map.map_size.x do
+      for index, tile in pairs(state.map.pieces) do
+        if tile.y == y and tile.x == x then
+          if x == state.map.map_size.x then
+            for _, key in pairs(keys) do
+              table.remove(state.map.pieces, key)
+            end
+            for _, drop in pairs(state.map.pieces) do
+              drop.y = drop.y + 1
+            end
+            goto next_line
+          end
+
+          table.insert(keys, index)
+          goto next_col
+        end
+      end
+      goto next_line
+
+      ::next_col::
+    end
+    -- break
+    ::next_line::
+  end
 end
 
 local loop = function()
   state.loop = vim.fn.timer_start(state.speed, function()
-    gravity()
+    local status = pcall(function()
+      gravity()
 
-    window_content()
+      window_content()
+    end, 10, 2)
+    if status == false then
+      print("Error")
+      vim.fn.timer_stop(state.loop)
+      return
+    end
   end, {
     ["repeat"] = -1,
   })
