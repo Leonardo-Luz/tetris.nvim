@@ -72,6 +72,7 @@ local state = {
     height = -1,
     width = -1,
   },
+  score = 0,
 }
 
 ---Copies a table without referencing it
@@ -94,7 +95,7 @@ local window_config = function()
   local win_width = vim.o.columns
   local win_height = vim.o.lines
 
-  local info_tab = 10
+  local info_tab = 16
   local background_width = state.map.map_size.x + info_tab
   local game_width = state.map.map_size.x
 
@@ -146,17 +147,31 @@ local foreach_float = function(callback)
   end
 end
 
+local string_mescle = function(char1, char2, size)
+  local line = ""
+
+  for i = 1, size, 1 do
+    if i % 2 == 0 then
+      line = line .. char1
+    else
+      line = line .. char2
+    end
+  end
+
+  return line
+end
+
 local clear_map = function()
   for i, map_line in pairs(state.map.actual) do
     if map_line == ("0"):rep(state.map.map_size.x) then
       table.remove(state.map.actual, i)
-      table.insert(state.map.actual, 1, ("|"):rep(state.map.map_size.x))
+      table.insert(state.map.actual, 1, string_mescle("|", " ", state.map.map_size.x))
     end
   end
 
   state.map.actual = {}
   for _ = 0, state.map.map_size.y do
-    table.insert(state.map.actual, string.rep("|", state.map.map_size.x))
+    table.insert(state.map.actual, string_mescle("|", " ", state.map.map_size.x))
   end
 end
 
@@ -207,7 +222,24 @@ end
 local window_content = function()
   map_update()
 
+  local lines = {}
+
+  for i = 1, state.map.map_size.y, 1 do
+    local line = ""
+    if i == state.map.map_size.y then
+      line = ("-"):rep(state.window.background.opts.width - ("Score:  " .. tostring(state.score)):len())
+        .. "Score: "
+        .. state.score
+        .. "-"
+    else
+      line = ("-"):rep(state.window.background.opts.width)
+    end
+
+    table.insert(lines, line)
+  end
+
   vim.api.nvim_buf_set_lines(state.window.game.floating.buf, 0, -1, true, state.map.actual)
+  vim.api.nvim_buf_set_lines(state.window.background.floating.buf, 0, -1, true, lines)
 end
 
 local exit = function()
@@ -407,6 +439,8 @@ local gravity = function()
             for _, drop in pairs(state.map.pieces) do
               drop.y = drop.y + 1
             end
+
+            state.score = state.score + 100
             goto next_line
           end
 
