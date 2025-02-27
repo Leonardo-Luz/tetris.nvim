@@ -1,4 +1,4 @@
-# tetris.nvim (WIP)
+# tetris.nvim
 
 *A Neovim Plugin that provides a playable text-based Tetris game.*
 

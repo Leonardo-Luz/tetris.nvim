@@ -50,7 +50,7 @@ local pieces = {
 
 local state = {
   window = {},
-  speed = 120,
+  speed = 80,
   map = {
     map_size = {
       x = 20,
@@ -203,6 +203,9 @@ local map_update = function()
 end
 
 local set_current_piece = function(piece_id)
+  -- FIX: debug
+  piece_id = 2
+
   local clone = pieces[piece_id]
 
   local aux
@@ -378,11 +381,28 @@ local remaps = function()
   })
 end
 
+local removeValuesFromTable = function(tbl, valuesToRemove)
+  -- Create a set of values to remove for quick lookup
+  local valuesSet = {}
+  for _, v in ipairs(valuesToRemove) do
+    valuesSet[v] = true
+  end
+
+  -- Iterate over the table and remove the values present in valuesToRemove
+  for i = #tbl, 1, -1 do
+    if valuesSet[tbl[i]] then
+      table.remove(tbl, i)
+    end
+  end
+end
+
 local gravity = function()
   for _, tile in pairs(state.current_piece.piece) do
     tile.y = tile.y + 1
   end
 
+  -- checks if the piece hit another piece in the map
+  -- FIX: doesnt check horizontal for collision
   if #state.map.pieces > 0 then
     for _, mapPos in ipairs(state.map.pieces) do
       for _, myPos in ipairs(state.current_piece.piece) do
@@ -414,6 +434,7 @@ local gravity = function()
     end
   end
 
+  -- check if piece is in the bottom of the map
   for _, tile in pairs(state.current_piece.piece) do
     if tile.y == state.map.map_size.y then
       local copy = deep_copy(state.current_piece.piece)
@@ -427,25 +448,31 @@ local gravity = function()
     end
   end
 
+  -- check for line clear
   for y = 1, state.map.map_size.y do
-    local keys = {}
+    local remove = {}
     for x = 1, state.map.map_size.x do
-      for index, tile in pairs(state.map.pieces) do
+      for _, tile in pairs(state.map.pieces) do
         if tile.y == y and tile.x == x then
+          -- last line char
+          table.insert(remove, tile)
+
           if x == state.map.map_size.x then
-            for _, key in pairs(keys) do
-              table.remove(state.map.pieces, key)
-            end
-            for _, drop in pairs(state.map.pieces) do
-              drop.y = drop.y + 1
+            vim.print("line clear")
+
+            removeValuesFromTable(state.map.pieces, remove)
+
+            for _, value in pairs(state.map.pieces) do
+              if value.y < y then
+                value.y = value.y + 1
+              end
             end
 
             state.score = state.score + 100
             goto next_line
+          else
+            goto next_col
           end
-
-          table.insert(keys, index)
-          goto next_col
         end
       end
       goto next_line
@@ -454,6 +481,7 @@ local gravity = function()
     end
     -- break
     ::next_line::
+    remove = {}
   end
 end
 
