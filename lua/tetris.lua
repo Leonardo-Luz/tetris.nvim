@@ -4,43 +4,43 @@ local M = {}
 
 ---@type {x: integer, y:integer}
 local pieces = {
-  {
+  { -- 1 = T
     { x = 1, y = 1 },
     { x = 2, y = 1 },
     { x = 3, y = 1 },
     { x = 2, y = 2 },
   },
-  {
+  { -- 2 = Square
     { x = 1, y = 1 },
     { x = 2, y = 1 },
     { x = 1, y = 2 },
     { x = 2, y = 2 },
   },
-  {
+  { -- 3 = s
     { x = 2, y = 1 },
     { x = 3, y = 1 },
     { x = 1, y = 2 },
     { x = 2, y = 2 },
   },
-  {
+  { -- 4 = z
     { x = 1, y = 1 },
     { x = 2, y = 1 },
     { x = 2, y = 2 },
     { x = 3, y = 2 },
   },
-  {
+  { -- 5 = L
     { x = 1, y = 1 },
     { x = 1, y = 2 },
     { x = 1, y = 3 },
     { x = 2, y = 3 },
   },
-  {
+  { -- 6 = J
     { x = 2, y = 1 },
     { x = 2, y = 2 },
     { x = 2, y = 3 },
     { x = 1, y = 3 },
   },
-  {
+  { -- 7 = I
     { x = 1, y = 1 },
     { x = 1, y = 2 },
     { x = 1, y = 3 },
@@ -50,7 +50,8 @@ local pieces = {
 
 local state = {
   window = {},
-  speed = 80,
+  info_tab = 16,
+  speed = 120,
   map = {
     map_size = {
       x = 20,
@@ -60,6 +61,7 @@ local state = {
     pieces = {},
   },
   loop = nil,
+  aux_piece = {},
   current_piece = {
     piece_id = -1,
     pos = {
@@ -95,7 +97,7 @@ local window_config = function()
   local win_width = vim.o.columns
   local win_height = vim.o.lines
 
-  local info_tab = 16
+  local info_tab = state.info_tab
   local background_width = state.map.map_size.x + info_tab
   local game_width = state.map.map_size.x
 
@@ -204,7 +206,7 @@ end
 
 local set_current_piece = function(piece_id)
   -- FIX: debug
-  piece_id = 2
+  -- piece_id = 2
 
   local clone = pieces[piece_id]
 
@@ -219,6 +221,8 @@ local set_current_piece = function(piece_id)
       piece_id = piece_id,
       piece = aux,
     }
+
+    state.aux_piece = deep_copy(aux)
   end
 end
 
@@ -255,52 +259,91 @@ local exit = function()
   end)
 end
 
-local rotate_piece = function(increase)
-  state.current_piece.direc = state.current_piece.direc + (increase and 1 or -1)
-
-  if state.current_piece.direc > 4 then
-    state.current_piece.direc = 1
-  elseif state.current_piece.direc < 1 then
-    state.current_piece.direc = 4
+local collision = function(aux)
+  -- Check for boundary collisions
+  for _, tile in pairs(aux) do
+    if tile.x < 1 or tile.x > state.map.map_size.x or tile.y < 1 or tile.y > state.map.map_size.y then
+      return true
+    end
   end
 
-  local aux = state.current_piece.piece
+  for _, placed_tile in pairs(state.map.pieces) do
+    for _, tile in pairs(aux) do
+      if placed_tile.x == tile.x and placed_tile.y == tile.y then
+        return true
+      end
+    end
+  end
 
-  if aux == nil then
+  return false
+end
+
+local get_center_of_rotation = function(piece_id)
+  if piece_id == 1 then -- T-piece
+    return 2, 1
+  elseif piece_id == 2 then -- Square-piece
+    return 1.5, 1.5
+  elseif piece_id == 3 then -- S-piece
+    return 2, 2
+  elseif piece_id == 4 then -- Z-piece
+    return 2, 2
+  elseif piece_id == 5 then -- L-piece
+    return 1, 2
+  elseif piece_id == 6 then -- J-piece
+    return 2, 2
+  elseif piece_id == 7 then -- I-piece
+    return 1, 2
+  end
+end
+
+local rotate_piece = function(increase)
+  local backup_direc = state.current_piece.direc
+
+  state.current_piece.direc = state.current_piece.direc + (increase and 1 or -1)
+  state.current_piece.direc = (state.current_piece.direc - 1) % 4 + 1
+
+  local aux = deep_copy(state.aux_piece)
+  if not aux then
     return
   end
 
-  local max_x = -1
-  local max_y = -1
+  local center_x, center_y = get_center_of_rotation(state.current_piece.piece_id)
+
+  local angle = math.rad((state.current_piece.direc - 1) * 90)
 
   for _, tile in pairs(aux) do
-    if tile.x > max_x then
-      max_x = tile.x
+    local dx = tile.x - center_x
+    local dy = tile.y - center_y
+    tile.x = center_x + dx * math.cos(angle) - dy * math.sin(angle)
+    tile.y = center_y + dx * math.sin(angle) + dy * math.cos(angle)
+    tile.x = math.floor(tile.x + 0.5)
+    tile.y = math.floor(tile.y + 0.5)
+  end
+
+  local min = {
+    x = 100,
+    y = 100,
+  }
+
+  for _, value in pairs(state.current_piece.piece) do
+    if value.x < min.x then
+      min.x = value.x
     end
-    if tile.y > max_y then
-      max_y = tile.y
+    if value.y < min.y then
+      min.y = value.y
     end
   end
 
-  if state.current_piece.direc == 2 then
-    for _, tile in pairs(aux) do
-      tile.x, tile.y = tile.y, tile.x
-    end
-  elseif state.current_piece.direc == 3 then
-    for _, tile in pairs(aux) do
-      if tile.x == 1 then
-        tile.x = max_x
-      elseif tile.x == max_x then
-        tile.x = 1
-      end
-    end
-  elseif state.current_piece.direc == 4 then
-    for _, tile in pairs(aux) do
-      tile.x, tile.y = tile.y, tile.x
-    end
+  for _, value in pairs(aux) do
+    value.x = value.x + min.x
+    value.y = value.y + min.y
   end
 
-  state.current_piece.piece = aux
+  if not collision(aux) then
+    state.current_piece.piece = aux
+  else
+    state.current_piece.direc = backup_direc
+  end
 
   window_content()
 end
@@ -382,13 +425,11 @@ local remaps = function()
 end
 
 local removeValuesFromTable = function(tbl, valuesToRemove)
-  -- Create a set of values to remove for quick lookup
   local valuesSet = {}
   for _, v in ipairs(valuesToRemove) do
     valuesSet[v] = true
   end
 
-  -- Iterate over the table and remove the values present in valuesToRemove
   for i = #tbl, 1, -1 do
     if valuesSet[tbl[i]] then
       table.remove(tbl, i)
@@ -412,7 +453,7 @@ local gravity = function()
           for _, tile in pairs(state.current_piece.piece) do
             tile.y = tile.y - 1
 
-            if tile.y <= 0 then -- GAME OVER
+            if tile.y <= 1 then -- GAME OVER
               set_current_piece(math.random(1, #pieces))
               for _ = 1, #state.map.pieces do
                 table.remove(state.map.pieces, 1)
@@ -454,9 +495,9 @@ local gravity = function()
     for x = 1, state.map.map_size.x do
       for _, tile in pairs(state.map.pieces) do
         if tile.y == y and tile.x == x then
-          -- last line char
           table.insert(remove, tile)
 
+          -- last line char
           if x == state.map.map_size.x then
             vim.print("line clear")
 
@@ -479,7 +520,6 @@ local gravity = function()
 
       ::next_col::
     end
-    -- break
     ::next_line::
     remove = {}
   end
@@ -521,6 +561,16 @@ end
 
 vim.api.nvim_create_user_command("Tetris", start, {})
 
-M.setup = function() end
+---setup tetris plugin
+---@param opts { map_size: {x: number, y:number}|nil, info_tab_size:number|nil, speed:number|nil }|nil
+M.setup = function(opts)
+  if not opts then
+    return
+  end
+
+  state.map.map_size = opts.map_size and opts.map_size or { x = 20, y = 30 }
+  state.info_tab = opts.info_tab_size and opts.info_tab_size or 16
+  state.speed = opts.speed and opts.speed or 120
+end
 
 return M
